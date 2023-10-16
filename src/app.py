@@ -1,35 +1,50 @@
-from playwright.sync_api import sync_playwright
-
-url = 'https://www.komplett.no/product/1251458'
-
-# def remove_non_digits(s):
-#     return ''.join([c for c in s if c.isdigit()])
-
-# def run(playwright):
-#     browser = playwright.chromium.launch(headless=False)
-#     context = browser.new_context(viewport={"width": 1920, "height": 1080})
-#     page = context.new_page()
-
-#     # Navigate to the website
-#     page.goto(url)
-
-#     text_content = page.locator('.product-price-now').text_content()
-
-#     price = remove_non_digits(text_content)
-
-#     print(float(price))
-
-#     # Close the browser
-#     browser.close()
-
-# with sync_playwright() as playwright:
-#     run(playwright)
-
-
 import requests
+from bs4 import BeautifulSoup
+import re
+import sqlite3
 
-headers = {'User-Agent': 'PostmanRuntime/7.32.2'}
+conn = sqlite3.connect('database_name.db')
 
-r = requests.get(url, headers=headers)
+cursor = conn.cursor()
 
-print(r)
+# Dropping EMPLOYEE table if already exists.
+cursor.execute("DROP TABLE IF EXISTS prices")
+
+# Creating table as per requirement
+sql ='''CREATE TABLE prices(
+    priceId INTEGER PRIMARY KEY, 
+    price FLOAT
+)'''
+cursor.execute(sql)
+print("Table created successfully........")
+
+# Commit your changes in the database
+conn.commit()
+
+
+def do_job(product_id):
+
+    url = f'https://www.komplett.no/product/{product_id}'
+
+    headers = {'User-Agent': 'PostmanRuntime/7.32.2'}
+
+    response = requests.get(url, headers=headers)
+
+    soup = BeautifulSoup(response.text, 'html.parser')
+
+    element = soup.find(class_='product-price-now')
+
+    if element is None:
+        return
+
+    result = re.sub('\D', '', element.text)
+
+    cursor = conn.cursor()
+    
+    cursor.execute("INSERT INTO prices (priceId, price) VALUES (?, ?)", (product_id, float(result)))
+
+    conn.commit()
+
+for num in range(1200000, 1300000):
+    do_job(num)
+
